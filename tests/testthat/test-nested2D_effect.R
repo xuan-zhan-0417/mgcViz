@@ -113,6 +113,19 @@ test_that("plot.nested2D", {
   expect_error(print(pc1 + l_ciBar() + l_fitPoints()), NA)
   expect_error(print(pc2), NA)
   
+  # Data of margin 2 before and after the exponential smoothing
+  ps <- plot(eff, part = "smooth")
+  expect_s3_class(ps, "plotSmooth")
+  expect_equal(ps$type, c("nexp", "Series"))
+  expect_equal(nrow(ps$data$fit), n)
+  expect_equal(ps$data$res$y, unname(X_e[, "y"]))          # before: the data column "y"
+  # after: it gives back the index z2 stored in the fit, once scaled and centred
+  expect_equal(as.vector(exp(si$alpha_scale) * (ps$data$fit$y - si$xm2)), 
+               as.vector(sm1$xt$xa[, 2]))
+  expect_equal(nrow(plot(eff, part = "smooth", xlim = c(11, 60))$data$fit), 50)
+  expect_error(print(ps), NA)
+  expect_error(print(ps + labs(title = NULL) + theme_minimal()), NA)
+  
   # Layers and arguments
   expect_error(print(pl + l_fitRaster() + l_fitContour() + l_rug() + l_points()), NA)
   expect_error(print(plot(eff, n = 20) + l_dens(type = "joint") + l_fitContour()), NA)

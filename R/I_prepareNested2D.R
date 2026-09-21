@@ -11,7 +11,8 @@
 # and coefficients [beta_1, beta_2, beta_3]. Here we can plot the whole effect
 # (part = "full"), the two margins X1 beta_1 and X2 beta_2 (part = "margin1", "margin2")
 # or the interaction X12 beta_3 (part = "inter"). The coefficients of the inner 
-# transformations are handled by .prepareNested2DCoef (part = "coef1", "coef2").
+# transformations are handled by .prepareNested2DCoef (part = "coef1", "coef2") and
+# the series before/after the exponential smoothing by .prepareNested2DSmooth (part = "smooth").
 #
 .prepareNested2D <- function(o, part, n, n1, xlim, ylim, too.far, unconditional, ...) {
 
@@ -208,6 +209,50 @@
               "xlab" = "Index", 
               "ylab" = .subEDF(paste0("Inner_coef(", term, ")"), edf), 
               "main" = main, "type" = "si")
+  return(out)
+  
+}
+
+##########
+# The data of margin 2 before and after the exponential smoothing. The (possibly high frequency)
+# series to be smoothed and the design matrix of the smoothing rate are stored in the smooth 
+# object, so we just smooth the former using the fitted coefficients. The smoothed series is 
+# returned on the same scale as the raw data (i.e. before the scaling by exp(alpha_scale) and the 
+# centring that are applied to obtain the index z2). The time axis is the position in the series;
+# if there are several observations per row of the response, the series is longer than the data.
+#
+.prepareNested2DSmooth <- function(o, xlim, ...) {
+  
+  gObj <- o$gObj
+  sm <- gObj$smooth[[o$ism]]
+  type <- class(o)[1]
+  
+  if (type != "inter_le") {
+    stop("plot.nested2D is only available for effects of type \"inter_le\", not \"", type, "\".")
+  }
+  
+  if (!exists("expsmooth")) {
+    stop("Please install the gamFactory package.")
+  }
+  
+  si <- sm$xt$si
+  prange <- sm$first.para:sm$last.para
+  alpha_2 <- coef(gObj)[prange[si$na1 + 1 + seq_len(si$na2)]]   # skip alpha_1 and alpha_scale
+  
+  raw <- si$y_raw
+  smoothed <- drop(expsmooth(y = raw, Xi = si$W_2, beta = alpha_2)$d0)
+  
+  ii <- seq_along(raw)
+  if (!is.null(xlim)) {
+    xlim <- sort(xlim)
+    ii <- ii[ii >= xlim[1] & ii <= xlim[2]]
+  }
+  
+  out <- list("x" = ii, "raw" = raw[ii], "fit" = smoothed[ii], 
+              "xlim" = range(ii),
+              "xlab" = "Time index", 
+              "ylab" = "Value", 
+              "main" = paste0("Margin 2 (", sm$term[2], "): data before and after smoothing"))
   return(out)
   
 }

@@ -32,6 +32,11 @@
 #'               \item{\code{"coef2"}}{ the coefficients of the inner transformation of the second margin: 
 #'                     the coefficients of the covariates modelling the smoothing rate of \code{exp(x)},
 #'                     with confidence intervals. The scaling parameter of \code{exp(x)} is not included.}
+#'               \item{\code{"smooth"}}{ the data of the second margin before (grey line) and after 
+#'                     (black line) the exponential smoothing, on the same plot. The x axis is the position 
+#'                     in the series to be smoothed and both series are on the scale of the raw data.
+#'                     Use \code{xlim} to zoom in on part of the series. No layers are available for 
+#'                     this plot, but other \code{ggplot2} components can be added.}
 #'             }
 #'             The coefficients are on the scale of the original covariates. Their confidence intervals
 #'             are based on the Bayesian covariance matrix of the fit, conditional on the 
@@ -83,6 +88,10 @@
 #' plot(sm(b, 1), part = "coef1") + l_ciBar() + l_fitPoints()
 #' plot(sm(b, 1), part = "coef2") + l_ciBar() + l_fitPoints()
 #'
+#' # Data of the second margin before and after exponential smoothing
+#' plot(sm(b, 1), part = "smooth")
+#' plot(sm(b, 1), part = "smooth", xlim = c(1, 200))
+#'
 #' # Opacity proportional to the significance of the effect
 #' plot(sm(b, 1)) + l_fitRaster(pTrans = zto1(0.05, 2, 0.1)) + l_fitContour() + l_points()
 #'
@@ -93,7 +102,7 @@
 #' @export plot.nested2D
 #' @export
 #'
-plot.nested2D <- function(x, part = c("full", "margin1", "margin2", "inter", "coef1", "coef2"), 
+plot.nested2D <- function(x, part = c("full", "margin1", "margin2", "inter", "coef1", "coef2", "smooth"), 
                           n = 40, n1 = 100, xlim = NULL, ylim = NULL, maxpo = 1e4,
                           too.far = 0.1, trans = identity, unconditional = FALSE, ...) {
   
@@ -104,6 +113,14 @@ plot.nested2D <- function(x, part = c("full", "margin1", "margin2", "inter", "co
     P <- .prepareNested2DCoef(o = x, margin = as.numeric(substr(part, 5, 5)), 
                               unconditional = unconditional)
     out <- .plot.inner.nested.smooth.1D(P = P, trans = trans, maxpo = maxpo, ci = TRUE)
+    class(out) <- c("plotSmooth", "gg")
+    return(out)
+  }
+  
+  # Data before and after exponential smoothing: both series on the same plot
+  if (part == "smooth") {
+    P <- .prepareNested2DSmooth(o = x, xlim = xlim, ...)
+    out <- .plot.nested2D.smooth(P = P, trans = trans)
     class(out) <- c("plotSmooth", "gg")
     return(out)
   }
@@ -122,5 +139,33 @@ plot.nested2D <- function(x, part = c("full", "margin1", "margin2", "inter", "co
   class(out) <- c("plotSmooth", "gg")
   
   return(out)
+  
+}
+
+########################
+#' @noRd
+.plot.nested2D.smooth <- function(P, trans) {
+  
+  lev <- c("Before smoothing", "After smoothing")
+  
+  .dat <- list()
+  .dat$fit <- data.frame(x = P$x, y = P$fit, ty = trans(P$fit), se = NA)
+  .dat$res <- data.frame(x = P$x, y = P$raw, sub = TRUE)
+  .dat$misc <- list(trans = trans)
+  
+  # Raw series first, so that the smoothed one is drawn on top of it
+  .long <- data.frame(x = rep(P$x, 2), 
+                      y = c(trans(P$raw), trans(P$fit)),
+                      series = factor(rep(lev, each = length(P$x)), levels = lev))
+  
+  .pl <- ggplot(data = .long, mapping = aes(x = x, y = y, colour = series)) +
+    geom_line(na.rm = TRUE) +
+    scale_colour_manual(values = c("grey60", "black"), name = NULL) +
+    labs(title = P$main, x = P$xlab, y = P$ylab) + 
+    theme_bw() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          legend.position = "bottom")
+  
+  return(list("ggObj" = .pl, "data" = .dat, "type" = c("nexp", "Series")))
   
 }

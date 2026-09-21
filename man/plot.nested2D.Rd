@@ -6,7 +6,7 @@
 \usage{
 \method{plot}{nested2D}(
   x,
-  part = c("full", "margin1", "margin2", "inter", "coef1", "coef2"),
+  part = c("full", "margin1", "margin2", "inter", "coef1", "coef2", "smooth"),
   n = 40,
   n1 = 100,
   xlim = NULL,
@@ -36,6 +36,11 @@ confidence intervals (point and error bar plot).}
 \item{\code{"coef2"}}{ the coefficients of the inner transformation of the second margin:
 the coefficients of the covariates modelling the smoothing rate of \code{exp(x)},
 with confidence intervals. The scaling parameter of \code{exp(x)} is not included.}
+\item{\code{"smooth"}}{ the data of the second margin before (grey line) and after
+(black line) the exponential smoothing, on the same plot. The x axis is the position
+in the series to be smoothed and both series are on the scale of the raw data.
+Use \code{xlim} to zoom in on part of the series. No layers are available for
+this plot, but other \code{ggplot2} components can be added.}
 }
 The coefficients are on the scale of the original covariates. Their confidence intervals
 are based on the Bayesian covariance matrix of the fit, conditional on the
@@ -113,6 +118,10 @@ plot(sm(b, 1), part = "inter") + l_fitRaster(pTrans = zto1(0.05, 2, 0.1), noiseu
 # Coefficients of the inner transformations, with confidence intervals
 plot(sm(b, 1), part = "coef1") + l_ciBar() + l_fitPoints()
 plot(sm(b, 1), part = "coef2") + l_ciBar() + l_fitPoints()
+
+# Data of the second margin before and after exponential smoothing
+plot(sm(b, 1), part = "smooth")
+plot(sm(b, 1), part = "smooth", xlim = c(1, 200))
 
 # Opacity proportional to the significance of the effect
 plot(sm(b, 1)) + l_fitRaster(pTrans = zto1(0.05, 2, 0.1)) + l_fitContour() + l_points()
