@@ -133,4 +133,21 @@ test_that("plot.nested2D", {
 
   # Global plot
   expect_error(print(plot(viz), pages = 1), NA)
+  
+  # plotRGL.nested2D: whole effect, in 3D, with confidence surfaces
+  skip_if_not_installed("rgl")
+  options(rgl.useNULL = TRUE)   # headless, no display needed
+  
+  Pfull <- mgcViz:::.prepareNested2D(o = eff, part = "full", n = 15, n1 = 100,
+                                     xlim = NULL, ylim = NULL, too.far = 0, unconditional = FALSE)
+  rgl::open3d()
+  expect_null(plotRGL(eff, n = 15, too.far = 0))
+  expect_true(length(rgl::rgl.ids()$id) > 0)
+  rgl::close3d()
+  
+  rgl::open3d()
+  expect_null(plotRGL(eff, n = 15, too.far = 0, se = FALSE, residuals = TRUE, maxpo = 50))
+  rgl::close3d()
+  
+  expect_error(plotRGL(eff, n = 15, too.far = 0, trans = function(z) 2 * z), NA)
 })
