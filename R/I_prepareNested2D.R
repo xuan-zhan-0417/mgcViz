@@ -1,19 +1,31 @@
 ##########
-# Internal methods that prepare plots of two dimensional nested effects
-# (only "inter_le", i.e. s(si(x), exp(x)), at the moment).
+# WHAT THIS FILE DOES
+# --------------------
+# Prepares the data behind every plot.nested2D() plot, for gamFactory's "inter_le"
+# effect, s(si(x), exp(x)). That is the only effect type handled here.
 #
-# The effect is a smooth function of the two inner indices (z1, z2) = (si(x), exp(x)),
-# with model matrix (before the columns of the inner parameters, which do not enter
-# the effect as a function of z1, z2)
+# THE EFFECT, IN ONE PICTURE
+# --------------------------
+#   z1 = si(x)    -> margin 1 (a single index)
+#   z2 = exp(x)   -> margin 2 (an adaptive exponential smooth)
 #
-#    X0 = [ X1(z1) , X2(z2) , X1(z1) (x)_row X2(z2) ]
+#   model matrix:  X0 = [ X1(z1) , X2(z2) , X1(z1) (x)_row X2(z2) ]
+#                          margin 1   margin 2      interaction block
 #
-# and coefficients [beta_1, beta_2, beta_3]. Here we can plot the whole effect
-# (part = "full"), the two margins X1 beta_1 and X2 beta_2 (part = "margin1", "margin2")
-# or the interaction X12 beta_3 (part = "inter"). The coefficients of the inner 
-# transformations are handled by .prepareNested2DCoef (part = "coef1", "coef2") and
-# the series before/after the exponential smoothing by .prepareNested2DSmooth (part = "smooth").
+#   effect      =  X1(z1) beta_1  +  X2(z2) beta_2  +  X12(z1,z2) beta_3
 #
+#   (columns for the inner si(x)/exp(x) parameters come before X0 in the real model
+#   matrix, but the effect itself does not depend on them -- so we drop them below.)
+#
+# ONE FUNCTION PER "part" ARGUMENT OF plot.nested2D()
+# ----------------------------------------------------
+#   .prepareNested2D        "full" / "margin1" / "margin2" / "inter"
+#   .prepareNested2DCoef     "coef1" / "coef2"   -- the si(x) / exp(x) weights
+#   .prepareNested2DSmooth   "smooth"            -- data before/after exp smoothing
+#
+# p1, p2 below are the number of columns of X1(z1) and X2(z2) respectively (so that
+# X0 has p1 + p2 + p1*p2 columns). gamFactory stores them on si$p1 / si$p2 (added
+# specifically so mgcViz does not have to reverse-engineer them).
 .prepareNested2D <- function(o, part, n, n1, xlim, ylim, too.far, unconditional, ...) {
 
   gObj <- o$gObj
@@ -32,19 +44,24 @@
   raw <- data.frame(x = as.numeric(xa[, 1]), y = as.numeric(xa[, 2]))
   evalX <- function(z1, z2) sm$xt$basis$evalX(z1 = z1, z2 = z2, deriv = 0)$X0
 
-  # Spline coefficients [beta_1, beta_2, beta_3]: the leading ones belong to the inner parameters
+  # coef(gObj) for this smooth = [inner si(x)/exp(x) params, then beta_1, beta_2, beta_3].
+  # We only want the beta_* part, so drop the inner-parameter columns:
   prange <- (sm$first.para:sm$last.para)[-seq_len(length(si$alpha))]
 
-  # Columns of X0 (and of [beta_1, beta_2, beta_3]) that we need
-  d <- .nested2DBlockDims(evalX, raw)
+  # Which columns of X0 (and of beta_1/beta_2/beta_3) does this `part` need?
+  if (is.null(si$p1) || is.null(si$p2)) {
+    stop("si$p1 / si$p2 not found: please update gamFactory to a version whose ",
+         ".build_n_inter_bspline_basis() stores the marginal basis dimensions on si.")
+  }
+  p1 <- si$p1; p2 <- si$p2
   cols <- switch(part,
-                 "full"    = seq_len(d$p1 + d$p2 + d$p1 * d$p2),
-                 "margin1" = seq_len(d$p1),
-                 "margin2" = d$p1 + seq_len(d$p2),
-                 "inter"   = d$p1 + d$p2 + seq_len(d$p1 * d$p2))
+                 "full"    = seq_len(p1 + p2 + p1 * p2),
+                 "margin1" = seq_len(p1),
+                 "margin2" = p1 + seq_len(p2),
+                 "inter"   = p1 + p2 + seq_len(p1 * p2))
   prange <- prange[cols]
 
-  # Coefficients, covariance matrix and edf of the required part of the effect
+  # Grab the coefficients, covariance and edf for just those columns
   V <- gObj$Vp
   if (unconditional) {
     if (is.null(gObj$Vc)) {
@@ -60,7 +77,7 @@
   t1 <- sm$term[1]
   t2 <- sm$term[2]
 
-  # 1D effect of one of the margins: X_k(z_k) beta_k as a function of z_k
+  # ---- 1D case: margin1 or margin2 -> X_k(z_k) beta_k, drawn as a curve in z_k ----
   if (part %in% c("margin1", "margin2")) {
     k <- if (part == "margin1") 1 else 2
     z <- raw[[k]]
@@ -79,8 +96,8 @@
     return(out)
   }
 
-  # 2D effect: whole effect or interaction, on a grid in (z1, z2) space. Here x (= z1)
-  # runs fastest, as in .preparePlotSmooth2D
+  # ---- 2D case: full effect or interaction -> a surface over a (z1, z2) grid ----
+  # x (= z1) runs fastest across the grid, matching .preparePlotSmooth2D's convention
   n <- max(10, n)
   xlim <- if (is.null(xlim)) range(raw$x) else sort(xlim)
   ylim <- if (is.null(ylim)) range(raw$y) else sort(ylim)
@@ -115,51 +132,18 @@
 }
 
 ##########
-# Number of columns of the marginal bases, p1 and p2, in X0 = [X1, X2, X1 (x)_row X2].
-# They are not stored in the smooth object, so we work them out from the fact that
-# ncol(X0) = (p1 + 1) * (p2 + 1) - 1, X1 depends on z1 only and X2 on z2 only. Hence
-# the right split is the (unique) one such that the first p1 columns do not change with z2
-# and the following p2 columns do not change with z1.
+# COEFFICIENTS OF THE INNER TRANSFORMATION (part = "coef1" or "coef2")
+# ----------------------------------------------------------------------
+#   margin = 1: the weights of the single index si(x)
+#   margin = 2: the smoothing-rate coefficients of exp(x)
+#               (NOT alpha_scale -- that is a separate scalar, not one of these)
 #
-.nested2DBlockDims <- function(evalX, raw) {
-
-  m <- 25
-  z1 <- seq(min(raw$x), max(raw$x), length.out = m)
-  z2 <- seq(min(raw$y), max(raw$y), length.out = m)
-
-  XA <- evalX(z1, rep(median(raw$y), m))  # z1 varies, z2 fixed
-  XB <- evalX(rep(median(raw$x), m), z2)  # z2 varies, z1 fixed
-
-  ntot <- ncol(XA)
-  isConst <- function(X) all(abs(sweep(X, 2, X[1, ])) < 1e-10)
-
-  cand <- NULL
-  for (p1 in seq_len(ntot)) {
-    if ((ntot + 1) %% (p1 + 1) != 0) { next }
-    p2 <- (ntot + 1) / (p1 + 1) - 1
-    if (p2 < 1) { next }
-    if (isConst(XB[, seq_len(p1), drop = FALSE]) &&
-        isConst(XA[, p1 + seq_len(p2), drop = FALSE])) {
-      cand <- rbind(cand, c(p1, p2))
-    }
-  }
-
-  if (is.null(cand) || nrow(cand) != 1) {
-    stop("Could not determine the dimensions of the marginal bases of the effect.")
-  }
-
-  return(list("p1" = cand[1, 1], "p2" = cand[1, 2]))
-
-}
-
-##########
-# Coefficients of the inner transformation of one of the two margins: the weights of the single
-# index si(x) (margin = 1) or the coefficients of the smoothing rate of exp(x) (margin = 2).
-# The scaling parameter of exp(x), alpha_scale, is not included.
+# Why the B / a0 business: the model actually fits these on a REPARAMETRISED, rotated
+# version of the covariates (B is the rotation matrix used to diagonalise the penalty).
+# To report the coefficients on the ORIGINAL covariate scale, we rotate back:
 #
-# The coefficients stored in the fit refer to the reparametrised model matrix X B, where B 
-# diagonalises the penalty (and, for margin 1, a0 is a fixed shift), so we go back to the
-# coefficients of the original covariates: B (alpha + a0), with covariance matrix B V B^T. 
+#   original-scale coefficients  =  B %*% (alpha + a0)
+#   their covariance matrix      =  B %*% V %*% t(B)
 #
 .prepareNested2DCoef <- function(o, margin, unconditional) {
   
@@ -214,12 +198,19 @@
 }
 
 ##########
-# The data of margin 2 before and after the exponential smoothing. The (possibly high frequency)
-# series to be smoothed and the design matrix of the smoothing rate are stored in the smooth 
-# object, so we just smooth the former using the fitted coefficients. The smoothed series is 
-# returned on the same scale as the raw data (i.e. before the scaling by exp(alpha_scale) and the 
-# centring that are applied to obtain the index z2). The time axis is the position in the series;
-# if there are several observations per row of the response, the series is longer than the data.
+# MARGIN 2's DATA, BEFORE AND AFTER SMOOTHING (part = "smooth")
+# -----------------------------------------------------------------
+# The raw series and the smoothing-rate design matrix are already saved on the smooth
+# object (si$y_raw, si$W_2). We just re-run the exponential smooth with the fitted
+# coefficients to get the "after" series.
+#
+# Scale note: this is the RAW smoothed series, on the same scale as the data -- it is
+# NOT z2 (z2 = exp(alpha_scale) * (this series - its mean)). We deliberately skip that
+# last step, so the "before" and "after" lines can be compared on one common scale.
+#
+# x-axis note: it is just position-in-the-series (1, 2, 3, ...). If one response row
+# corresponds to several observations of the series (a high-frequency case), this
+# series is longer than the number of response rows.
 #
 .prepareNested2DSmooth <- function(o, xlim, ...) {
   

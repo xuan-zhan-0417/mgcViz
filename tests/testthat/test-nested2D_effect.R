@@ -52,6 +52,10 @@ test_that("plot.nested2D", {
   prange_sp <- prange[-seq_len(length(sm1$xt$si$alpha))]   # drop the inner parameters
   p <- sqrt(length(prange_sp) + 1) - 1
   expect_equal(p, round(p))
+  # si$p1 / si$p2 (stored by gamFactory's .build_n_inter_bspline_basis) must agree with this
+  # independently-derived p -- .prepareNested2D reads si$p1/si$p2 directly, no reverse-engineering
+  expect_equal(sm1$xt$si$p1, p)
+  expect_equal(sm1$xt$si$p2, p)
   blocks <- list(margin1 = seq_len(p), margin2 = p + seq_len(p), inter = 2 * p + seq_len(p^2))
   Vp <- fit$Vp[prange_sp, prange_sp]
   
@@ -87,7 +91,12 @@ test_that("plot.nested2D", {
   expect_equal(plf$data$fit$z, drop(Xf %*% coef(fit)[prange_sp]))
   
   expect_error(plot(eff, part = "wrong"))
-  
+
+  # Clear error (not a cryptic one) if si$p1/si$p2 are missing, e.g. an older gamFactory
+  eff_old <- eff
+  eff_old$gObj$smooth[[1]]$xt$si$p1 <- NULL
+  expect_error(plot(eff_old, n = 20), "update gamFactory")
+
   # Coefficients of the inner transformations, on the scale of the original covariates
   si <- sm1$xt$si
   V <- fit$Vp
