@@ -33,8 +33,8 @@
 #'             (y axis) for the plot.
 #' @param se.mult a positive number which will be the multiplier of the standard errors
 #'                when calculating standard error surfaces.
-#' @param trans monotonic function to apply to the effect (and to the upper/lower confidence
-#'              surfaces) before plotting. Monotonicity is not checked.
+#' @param trans currently unused (kept only for signature parity with
+#'              [plotRGL.mgcv.smooth.2D], which accepts it but does not apply it either).
 #' @param unconditional if \code{TRUE} then the smoothing parameter uncertainty corrected covariance
 #'                      matrix is used to compute uncertainty bands, if available.
 #'                      Otherwise the bands treat the smoothing parameters as fixed.
@@ -88,12 +88,6 @@ plotRGL.nested2D <- function(x, se = TRUE, n = 40, residuals = FALSE, type = "au
   P$se[P$exclude] <- NA
   P$se <- P$se * se.mult
 
-  # Monotonic transform, applied to the fitted surface and to the CI surfaces separately
-  # (as for the other layers of this package, e.g. l_ciLine), not to the fit then offset by se
-  P$upr <- trans(P$fit + P$se)
-  P$lwr <- trans(P$fit - P$se)
-  P$fit <- trans(P$fit)
-
   R <- list()
   if (residuals) {
     R <- .getResidualsPlotRGL(gamObj = x$gObj, X = P$raw, type = type, maxpo = maxpo,
@@ -101,50 +95,11 @@ plotRGL.nested2D <- function(x, se = TRUE, n = 40, residuals = FALSE, type = "au
     P$raw <- R$raw
   }
 
-  # 2) Actual plotting: same internal renderer used by plotRGL.mgcv.smooth.2D
+  # 2) Actual plotting: reuse plotRGL.mgcv.smooth.2D's own internal renderer as-is, so this
+  # has exactly the same look (and the same quirks -- e.g. `trans` is accepted here only for
+  # signature parity with plotRGL.mgcv.smooth.2D; like that function, it is not actually
+  # applied to the surfaces).
   P$plotCI <- se
-  .plotRGL.nested2D(P = P, res = R$res)
-
-}
-
-##########
-# Internal function for plotting. Essentially the same as .plotRGL.mgcv.smooth.2D, but P$fit,
-# P$upr and P$lwr are already transformed (see plotRGL.nested2D), rather than being transformed
-# (or not) downstream.
-#' @noRd
-.plotRGL.nested2D <- function(P, res = NULL) {
-
-  # New window and setup env
-  rgl::.check3d()
-
-  # Draws non-parametric density
-  n <- length(P$x)
-  rgl::surface3d(P$x, P$y, matrix(P$fit, n, n), color = "#FF2222", alpha = 0.5)
-  if (P$plotCI) {
-    rgl::surface3d(P$x, P$y, matrix(P$upr, n, n),
-                   alpha = 0.5, color = "#CCCCFF", front = "lines")
-    rgl::surface3d(P$x, P$y, matrix(P$lwr, n, n),
-                   alpha = 0.5, color = "#CCCCFF", front = "lines")
-  }
-
-  # Draws the residuals as spheres on the baseline
-  if (!is.null(res)) {
-    cent <- min(P$fit - 3 * P$se, na.rm = TRUE)
-    rgl::surface3d(P$x, P$y, matrix(cent, n, n), color = "#CCCCFF",
-                   front = "lines", back = "lines")
-    rgl::axes3d(c('x', 'y', "z"))
-    rgl::title3d(xlab = P$xlab, ylab = P$ylab, main = P$main)
-    res <- res / max(abs(res)) * max(P$se, na.rm = TRUE)
-    rgl::spheres3d(P$raw$x, P$raw$y, cent + res,
-                   radius = max(c(abs(P$fit), P$x, P$y), na.rm = TRUE) / 100,
-                   color = ifelse(res < 0, "red", "blue"))
-  } else {
-    rgl::axes3d(c('x', 'y', "z"))
-    rgl::title3d(xlab = P$xlab, ylab = P$ylab, main = P$main)
-  }
-
-  rgl::aspect3d(1, 1, 1)
-
-  return(invisible(NULL))
+  .plotRGL.mgcv.smooth.2D(P = P, trans = trans, res = R$res)
 
 }

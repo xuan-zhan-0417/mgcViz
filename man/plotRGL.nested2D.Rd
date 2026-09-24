@@ -61,8 +61,8 @@ Unlike \link{plot.nested2D}, the default here is 0 (no exclusion), as in
 \item{se.mult}{a positive number which will be the multiplier of the standard errors
 when calculating standard error surfaces.}
 
-\item{trans}{monotonic function to apply to the effect (and to the upper/lower confidence
-surfaces) before plotting. Monotonicity is not checked.}
+\item{trans}{currently unused (kept only for signature parity with
+\link{plotRGL.mgcv.smooth.2D}, which accepts it but does not apply it either).}
 
 \item{unconditional}{if \code{TRUE} then the smoothing parameter uncertainty corrected covariance
 matrix is used to compute uncertainty bands, if available.
