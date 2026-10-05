@@ -12,33 +12,18 @@
   gObj <- o$gObj
   sm <- gObj$smooth[[ o$ism ]]
   si <- sm$xt$si
-  alpha <- si$alpha
-  a0 <- si$a0
-  dsi <- length( alpha )
+  mk <- si$margin[[1]]   # the (only) margin of a 1D nested effect
+  dsi <- length( si$alpha )
+  type <- .nestTypes(si)
   
-  rescale <- function(x){ exp(alpha[1]) * (x - si$xm) }
-  
-  type <- class(o)[1]
-  if( type == "si" ){
-   raw <- sort( si$X %*% (alpha + a0) )
-   rescale <- function(x) x # No rescaling needed!
-   trnam <- "proj"
-  } 
-  if( type == "nexpsm" ){
-   raw <- expsmooth(y = si$x, Xi = si$X, beta = alpha[-1], times = si$times)$d0
-   trnam <- "expsm"
-  }
-  if( type == "mgks" ){
-    raw <- mgks(y = si$x, dist = si$dist, beta = alpha[-1])$d0
-    trnam <- "mgks"
-  }
-  if( type == "si_nexpsm" ){
-    raw <- sm$xt$xa
-    rescale <- function(x) x
-    trnam <- "si_nexpsm"
-  }
+  # x axis: the inner index at the data on the scale of the inner transformation, i.e. before the
+  # exp(scale) * (. - xm) applied by exp and mgks margins; rescale() maps it back to the index
+  sc <- if( is.null(mk$iscale) ) 1 else exp(si$alpha[mk$iscale])
+  xm <- if( is.null(mk$iscale) ) 0 else mk$xm
+  rescale <- function(x){ sc * (x - xm) }
+  raw <- sm$xt$xa[ , 1] / sc + xm
+  trnam <- switch(type, "si" = "proj", "exp" = "expsm", "mgks" = "mgks", "si_nexp" = "si_nexpsm")
 
-  # Get regression coeff of outer smooth
   prange <- (sm$first.para:sm$last.para)[-(1:dsi)]
   beta <- coef( gObj )[ prange ]
   
@@ -49,7 +34,7 @@
   xx <- seq(xlim[1], xlim[2], length = n) 
   
   # Compute outer model matrix
-  X <- sm$xt$basis$evalX(x = rescale(xx), deriv = 0)$X0
+  X <- sm$xt$basis$evalX(z1 = rescale(xx), deriv = 0)$X0
   
   fit <- X %*% beta
   

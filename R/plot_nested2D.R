@@ -2,8 +2,8 @@
 #' Plotting two dimensional nested effects
 #'
 #' @description Plotting method for two dimensional nested smooth effects fitted with
-#'              \code{gamFactory}. At the moment only effects of type \code{"inter_le"},
-#'              that is \code{s(si(x), exp(x))}, an interaction between a single index and
+#'              \code{gamFactory}. At the moment only effects \code{s(si(x), exp(x))},
+#'              an interaction between a single index and
 #'              an adaptive exponential smooth, are supported. The effect is plotted as a
 #'              function of the two inner indices, so the x axis is the single index
 #'              \code{si(x)} and the y axis is the exponential smooth \code{exp(x)}.
@@ -71,7 +71,7 @@
 #' library(mgcViz)
 #' library(gamFactory)
 #'
-#' # fit <- gam_nl(list(y ~ s_nest(X_l, X_e, trans = trans_inter_le()), ~ 1),
+#' # fit <- gam_nl(list(y ~ s_nest(X_l, X_e, trans = trans_inter(trans_linear(), trans_exp())), ~ 1),
 #' #               data = dat, family = fam_gaussian(), optimizer = "efs")
 #' b <- getViz(fit)
 #'

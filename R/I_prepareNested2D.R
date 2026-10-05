@@ -1,8 +1,8 @@
 ##########
 # WHAT THIS FILE DOES
 # --------------------
-# Prepares the data behind every plot.nested2D() plot, for gamFactory's "inter_le"
-# effect, s(si(x), exp(x)). That is the only effect type handled here.
+# Prepares the data behind every plot.nested2D() plot, for gamFactory's s(si(x), exp(x))
+# effect (margins of type "si" and "exp", see .nestTypes). That is the only structure handled here.
 #
 # THE EFFECT, IN ONE PICTURE
 # --------------------------
@@ -30,10 +30,9 @@
 
   gObj <- o$gObj
   sm <- gObj$smooth[[o$ism]]
-  type <- class(o)[1]
-
-  if (type != "inter_le") {
-    stop("plot.nested2D is only available for effects of type \"inter_le\", not \"", type, "\".")
+  if (!identical(.nestTypes(sm$xt$si), c("si", "exp"))) {
+    stop("plot.nested2D is only available for s(si(x), exp(x)) effects, ",
+         "i.e. s_nest(X, E, trans = trans_inter(trans_linear(), trans_exp())).")
   }
 
   si <- sm$xt$si
@@ -149,29 +148,22 @@
   
   gObj <- o$gObj
   sm <- gObj$smooth[[o$ism]]
-  type <- class(o)[1]
-  
-  if (type != "inter_le") {
-    stop("plot.nested2D is only available for effects of type \"inter_le\", not \"", type, "\".")
+  if (!identical(.nestTypes(sm$xt$si), c("si", "exp"))) {
+    stop("plot.nested2D is only available for s(si(x), exp(x)) effects, ",
+         "i.e. s_nest(X, E, trans = trans_inter(trans_linear(), trans_exp())).")
   }
   
-  si <- sm$xt$si
-  na1 <- si$na1
-  na2 <- si$na2
+  mk <- sm$xt$si$margin[[margin]]
   prange <- sm$first.para:sm$last.para
   
-  if (margin == 1) {
-    idx <- prange[seq_len(na1)]
-    B <- si$B_1
-    a0 <- si$a0_1
-    term <- sm$term[1]
-    main <- paste0("Weights of the single index si(", term, ")")
+  idx <- prange[setdiff(mk$idx, mk$iscale)]   # parameters of this margin, without its scale (exp margin)
+  B <- mk$B
+  a0 <- mk$a0                                 # NULL for the exp margin
+  term <- sm$term[margin]
+  main <- if (margin == 1) {
+    paste0("Weights of the single index si(", term, ")")
   } else {
-    idx <- prange[na1 + 1 + seq_len(na2)]   # skip alpha_1 and alpha_scale
-    B <- si$B_2
-    a0 <- NULL
-    term <- sm$term[2]
-    main <- paste0("Smoothing rate coefficients of exp(", term, ")")
+    paste0("Smoothing rate coefficients of exp(", term, ")")
   }
   if (is.null(a0)) { a0 <- numeric(length(idx)) }
   
@@ -201,7 +193,7 @@
 # MARGIN 2's DATA, BEFORE AND AFTER SMOOTHING (part = "smooth")
 # -----------------------------------------------------------------
 # The raw series and the smoothing-rate design matrix are already saved on the smooth
-# object (si$y_raw, si$W_2). We just re-run the exponential smooth with the fitted
+# object (si$margin[[2]]$y, si$margin[[2]]$W). We just re-run the exponential smooth with the fitted
 # coefficients to get the "after" series.
 #
 # Scale note: this is the RAW smoothed series, on the same scale as the data -- it is
@@ -216,22 +208,21 @@
   
   gObj <- o$gObj
   sm <- gObj$smooth[[o$ism]]
-  type <- class(o)[1]
-  
-  if (type != "inter_le") {
-    stop("plot.nested2D is only available for effects of type \"inter_le\", not \"", type, "\".")
+  if (!identical(.nestTypes(sm$xt$si), c("si", "exp"))) {
+    stop("plot.nested2D is only available for s(si(x), exp(x)) effects, ",
+         "i.e. s_nest(X, E, trans = trans_inter(trans_linear(), trans_exp())).")
   }
   
   if (!exists("expsmooth")) {
     stop("Please install the gamFactory package.")
   }
   
-  si <- sm$xt$si
+  mk <- sm$xt$si$margin[[2]]
   prange <- sm$first.para:sm$last.para
-  alpha_2 <- coef(gObj)[prange[si$na1 + 1 + seq_len(si$na2)]]   # skip alpha_1 and alpha_scale
+  alpha_2 <- coef(gObj)[prange[setdiff(mk$idx, mk$iscale)]]   # smoothing-rate coefficients (no scale)
   
-  raw <- si$y_raw
-  smoothed <- drop(expsmooth(y = raw, Xi = si$W_2, beta = alpha_2)$d0)
+  raw <- mk$y
+  smoothed <- drop(expsmooth(y = raw, Xi = mk$W, beta = alpha_2)$d0)
   
   ii <- seq_along(raw)
   if (!is.null(xlim)) {

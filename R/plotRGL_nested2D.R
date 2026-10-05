@@ -4,7 +4,7 @@
 #' @description This method plots an interactive 3D representation of the whole effect
 #'              (all three parts added together, see [plot.nested2D]) of a two dimensional
 #'              nested smooth effect fitted with \code{gamFactory}. At the moment only
-#'              effects of type \code{"inter_le"}, that is \code{s(si(x), exp(x))}, are
+#'              effects \code{s(si(x), exp(x))}, are
 #'              supported. The output is built with the same internal renderer used by
 #'              [plotRGL.mgcv.smooth.2D], so it has the same style: a red surface for the
 #'              fitted effect and, if \code{se = TRUE}, two blue wireframe surfaces at
@@ -49,7 +49,7 @@
 #' library(gamFactory)
 #' library(rgl)
 #'
-#' # fit <- gam_nl(list(y ~ s_nest(X_l, X_e, trans = trans_inter_le()), ~ 1),
+#' # fit <- gam_nl(list(y ~ s_nest(X_l, X_e, trans = trans_inter(trans_linear(), trans_exp())), ~ 1),
 #' #               data = dat, family = fam_gaussian(), optimizer = "efs")
 #' b <- getViz(fit)
 #'

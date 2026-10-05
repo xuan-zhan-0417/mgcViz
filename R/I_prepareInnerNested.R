@@ -19,15 +19,16 @@
   sm <- gObj$smooth[[o$ism]]
   
   si <- sm$xt$si
+  mk <- si$margin[[1]]   # the (only) margin of a 1D nested effect
   alpha <- si$alpha
-  B <- si$B
+  B <- mk$B
   
   da <- length(alpha)
   prange <- (sm$first.para:sm$last.para)[1:da]
-  type <- class(o)[1]
+  type <- .nestTypes(si)
   
   # Remove scale parameter of inner transformation
-  if (type %in% c("mgks", "nexpsm")) {
+  if (type %in% c("mgks", "exp")) {
     prange <- prange[-1]
     da <- da - 1
     alpha <- alpha[-1]
@@ -38,22 +39,22 @@
   
   Va <- gObj$Vp[prange, prange, drop = FALSE]
   
-  if (type == "si_nexpsm") {
+  if (type == "si_nexp") {
     if (!smooth) {
       # coef plot (Only alpha_si)
-      alpha_center <- si$alpha_center
-      alpha_si <- si$alpha_si
-      n_si <- si$n_si
-      n_nexp <- si$n_nexp
-      positive_si <- si$positive_si
+      alpha_center <- mk$alpha_center
+      n_si <- mk$n_si
+      n_nexp <- mk$n_nexp
+      alpha_si <- alpha[n_nexp + seq_len(n_si)]   # parameters are c(alpha_nexp, alpha_si)
+      positive_si <- mk$positive_si
       
       if (is.null(alpha_center)) {
         alpha_center <- alpha_si * 0
       }
       
-      alpha_si <- drop(si$B_si %*% (alpha_si + alpha_center))
+      alpha_si <- drop(mk$B_si %*% (alpha_si + alpha_center))
       
-      Va_si <- si$B_si %*% Va[(n_nexp + 1):(n_nexp + n_si), (n_nexp + 1):(n_nexp + n_si), drop = FALSE] %*% t(si$B_si)
+      Va_si <- mk$B_si %*% Va[(n_nexp + 1):(n_nexp + n_si), (n_nexp + 1):(n_nexp + n_si), drop = FALSE] %*% t(mk$B_si)
       se_si <- sqrt(pmax(0, diag(Va_si)))
       
       # Consistently use
@@ -106,18 +107,18 @@
     }
   }
   
-  if (type == "nexpsm") {
+  if (type == "exp") {
     inner <- expsmooth(
-      y = si$x,
-      Xi = si$X,
+      y = mk$y,
+      Xi = mk$W,
       beta = alpha,
       deriv = 1
     )
     fit <- inner$d0
     Jac <- inner$d1
-    if (!is.null(si$times)) {
-      fit <- fit[1:max(si$times)]
-      Jac <- Jac[1:max(si$times), ]
+    if (!is.null(mk$times)) {
+      fit <- fit[1:max(mk$times)]
+      Jac <- Jac[1:max(mk$times), ]
     }
     nobs <- length(fit)
     se <- sqrt(pmax(0, rowSums((Jac %*% Va) * Jac)))
@@ -140,7 +141,7 @@
       "fit" = fit[ii],
       "x" = ii,
       "se" = se[ii],
-      "p.resid" = si$x[ii],
+      "p.resid" = mk$y[ii],
       "raw" = ii,
       "xlim" = xlim,
       xlab = xlabel,
@@ -152,7 +153,7 @@
   }
   
   if (type == "si") {
-    a0 <- si$a0
+    a0 <- mk$a0
     if (is.null(a0)) {
       a0 <- alpha * 0
     }
